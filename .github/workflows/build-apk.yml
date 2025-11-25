@@ -13,94 +13,35 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v2
-      
+    - name: Download Android template
+      run: |
+        # Download a simple Android WebView template
+        wget -O webview-template.zip https://github.com/01binary/simple-android-webview/archive/refs/heads/main.zip
+        unzip webview-template.zip
+        mv simple-android-webview-main android
+        
+    - name: Copy your HTML app
+      run: |
+        # Replace the template's HTML with your app
+        cp index.html android/app/src/main/assets/
+        # Rename to what the template expects
+        mv android/app/src/main/assets/index.html android/app/src/main/assets/index.html || true
+        
     - name: Setup Java
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '17'
         
-    - name: Create Android project structure
-      run: |
-        mkdir -p android/app/src/main/assets
-        mkdir -p android/app/src/main/res
-        cp index.html android/app/src/main/assets/
-        
-        # Create basic AndroidManifest.xml
-        cat > android/app/src/main/AndroidManifest.xml << 'EOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-            package="com.farmpro.assistant">
-            
-            <application
-                android:allowBackup="true"
-                android:icon="@mipmap/ic_launcher"
-                android:label="FarmPro Assistant"
-                android:theme="@style/AppTheme">
-                <activity
-                    android:name=".MainActivity"
-                    android:label="FarmPro Assistant"
-                    android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
-                    android:launchMode="singleTop"
-                    android:windowSoftInputMode="adjustResize">
-                    <intent-filter>
-                        <action android:name="android.intent.action.MAIN" />
-                        <category android:name="android.intent.category.LAUNCHER" />
-                    </intent-filter>
-                </activity>
-            </application>
-            
-            <uses-permission android:name="android.permission.INTERNET" />
-        </manifest>
-        EOF
-        
-        # Create basic build.gradle
-        cat > android/app/build.gradle << 'EOF'
-        apply plugin: 'com.android.application'
-        
-        android {
-            compileSdkVersion 33
-            defaultConfig {
-                applicationId "com.farmpro.assistant"
-                minSdkVersion 21
-                targetSdkVersion 33
-                versionCode 1
-                versionName "1.0.0"
-            }
-            buildTypes {
-                release {
-                    minifyEnabled false
-                    proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-                }
-                debug {
-                    debuggable true
-                }
-            }
-        }
-        
-        dependencies {
-            implementation fileTree(dir: 'libs', include: ['*.jar'])
-            implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'androidx.webkit:webkit:1.7.0'
-        }
-        EOF
-        
-    - name: Build APK with Gradle
+    - name: Build APK
       run: |
         cd android
-        chmod +x ./gradlew || true
-        ./gradlew assembleDebug || ./gradlew build
+        chmod +x gradlew
+        ./gradlew assembleDebug --no-daemon
         
-    - name: Find and Upload APK
-      run: |
-        find . -name "*.apk" -type f | head -1
-      working-directory: android
-      
-    - name: Upload APK Artifact
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: farmpro-assistant
-        path: android/app/build/outputs/apk/**/*.apk
+        path: android/app/build/outputs/apk/debug/app-debug.apk
         retention-days: 30
