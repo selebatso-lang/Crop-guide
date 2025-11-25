@@ -13,36 +13,94 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        
-    - name: Install Capacitor
-      run: |
-        npm install -g @capacitor/cli
-        npx cap init "FarmPro Assistant" "com.farmpro.assistant" --web-dir=.
-        
-    - name: Add Android platform
-      run: |
-        npx cap add android
-        npx cap sync
-        
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v2
+      
     - name: Setup Java
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '17'
         
-    - name: Build APK
+    - name: Create Android project structure
+      run: |
+        mkdir -p android/app/src/main/assets
+        mkdir -p android/app/src/main/res
+        cp index.html android/app/src/main/assets/
+        
+        # Create basic AndroidManifest.xml
+        cat > android/app/src/main/AndroidManifest.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            package="com.farmpro.assistant">
+            
+            <application
+                android:allowBackup="true"
+                android:icon="@mipmap/ic_launcher"
+                android:label="FarmPro Assistant"
+                android:theme="@style/AppTheme">
+                <activity
+                    android:name=".MainActivity"
+                    android:label="FarmPro Assistant"
+                    android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+                    android:launchMode="singleTop"
+                    android:windowSoftInputMode="adjustResize">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+            
+            <uses-permission android:name="android.permission.INTERNET" />
+        </manifest>
+        EOF
+        
+        # Create basic build.gradle
+        cat > android/app/build.gradle << 'EOF'
+        apply plugin: 'com.android.application'
+        
+        android {
+            compileSdkVersion 33
+            defaultConfig {
+                applicationId "com.farmpro.assistant"
+                minSdkVersion 21
+                targetSdkVersion 33
+                versionCode 1
+                versionName "1.0.0"
+            }
+            buildTypes {
+                release {
+                    minifyEnabled false
+                    proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+                }
+                debug {
+                    debuggable true
+                }
+            }
+        }
+        
+        dependencies {
+            implementation fileTree(dir: 'libs', include: ['*.jar'])
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'androidx.webkit:webkit:1.7.0'
+        }
+        EOF
+        
+    - name: Build APK with Gradle
       run: |
         cd android
-        chmod +x ./gradlew
-        ./gradlew assembleDebug
+        chmod +x ./gradlew || true
+        ./gradlew assembleDebug || ./gradlew build
         
-    - name: Upload APK
+    - name: Find and Upload APK
+      run: |
+        find . -name "*.apk" -type f | head -1
+      working-directory: android
+      
+    - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: farmpro-assistant
-        path: android/app/build/outputs/apk/debug/app-debug.apk
+        path: android/app/build/outputs/apk/**/*.apk
         retention-days: 30
