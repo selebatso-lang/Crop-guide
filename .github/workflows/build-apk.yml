@@ -13,35 +13,86 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Download Android template
+    - name: Setup Android
+      uses: android-actions/setup-android@v2
+      
+    - name: Create simple APK structure
       run: |
-        # Download a simple Android WebView template
-        wget -O webview-template.zip https://github.com/01binary/simple-android-webview/archive/refs/heads/main.zip
-        unzip webview-template.zip
-        mv simple-android-webview-main android
+        # Create a minimal Android project
+        mkdir -p FarmProApp/app/src/main/assets
+        mkdir -p FarmProApp/app/src/main/res
+        mkdir -p FarmProApp/app/src/main/java/com/farmpro/assistant
         
-    - name: Copy your HTML app
+        # Copy your HTML
+        cp index.html FarmProApp/app/src/main/assets/
+        
+        # Create main activity
+        cat > FarmProApp/app/src/main/java/com/farmpro/assistant/MainActivity.java << 'EOF'
+        package com.farmpro.assistant;
+        
+        import android.app.Activity;
+        import android.os.Bundle;
+        import android.webkit.WebView;
+        import android.webkit.WebViewClient;
+        
+        public class MainActivity extends Activity {
+            private WebView webView;
+            
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                
+                webView = new WebView(this);
+                webView.setWebViewClient(new WebViewClient());
+                webView.getSettings().setJavaScriptEnabled(true);
+                webView.getSettings().setDomStorageEnabled(true);
+                webView.loadUrl("file:///android_asset/index.html");
+                
+                setContentView(webView);
+            }
+        }
+        EOF
+        
+        # Create AndroidManifest.xml
+        cat > FarmProApp/app/src/main/AndroidManifest.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            package="com.farmpro.assistant">
+            
+            <uses-permission android:name="android.permission.INTERNET" />
+            
+            <application
+                android:icon="@mipmap/ic_launcher"
+                android:label="FarmPro Assistant">
+                <activity
+                    android:name=".MainActivity"
+                    android:label="FarmPro Assistant"
+                    android:configChanges="orientation|keyboardHidden"
+                    android:launchMode="singleTop">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
+        
+    - name: Download pre-built APK tool
       run: |
-        # Replace the template's HTML with your app
-        cp index.html android/app/src/main/assets/
-        # Rename to what the template expects
-        mv android/app/src/main/assets/index.html android/app/src/main/assets/index.html || true
-        
-    - name: Setup Java
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
+        wget -O apktool.jar https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.7.0.jar
+        wget -O template.apk https://github.com/WebView-APK-Template/simple-webview-apk/releases/download/v1.0/simple-webview-template.apk
         
     - name: Build APK
       run: |
-        cd android
-        chmod +x gradlew
-        ./gradlew assembleDebug --no-daemon
+        # Use a simple APK packaging approach
+        java -jar apktool.jar d template.apk -o unpacked
+        cp index.html unpacked/assets/
+        java -jar apktool.jar b unpacked -o farmpro-assistant.apk
         
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: farmpro-assistant
-        path: android/app/build/outputs/apk/debug/app-debug.apk
-        retention-days: 30
+        path: farmpro-assistant.apk
+        retention-days: 30 
