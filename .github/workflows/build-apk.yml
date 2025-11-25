@@ -13,86 +13,36 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup Android
+    - name: Download WebView APK Template
+      run: |
+        # Download a working WebView APK template
+        wget -O webview-template.zip "https://github.com/theypsilon/SimpleWebView/archive/refs/heads/master.zip"
+        unzip webview-template.zip
+        mv SimpleWebView-master android-app
+        
+    - name: Replace HTML Content
+      run: |
+        # Replace the template's HTML with your FarmPro app
+        cp index.html android-app/app/src/main/assets/www/
+        
+    - name: Setup Java and Android
       uses: android-actions/setup-android@v2
       
-    - name: Create simple APK structure
-      run: |
-        # Create a minimal Android project
-        mkdir -p FarmProApp/app/src/main/assets
-        mkdir -p FarmProApp/app/src/main/res
-        mkdir -p FarmProApp/app/src/main/java/com/farmpro/assistant
-        
-        # Copy your HTML
-        cp index.html FarmProApp/app/src/main/assets/
-        
-        # Create main activity
-        cat > FarmProApp/app/src/main/java/com/farmpro/assistant/MainActivity.java << 'EOF'
-        package com.farmpro.assistant;
-        
-        import android.app.Activity;
-        import android.os.Bundle;
-        import android.webkit.WebView;
-        import android.webkit.WebViewClient;
-        
-        public class MainActivity extends Activity {
-            private WebView webView;
-            
-            @Override
-            protected void onCreate(Bundle savedInstanceState) {
-                super.onCreate(savedInstanceState);
-                
-                webView = new WebView(this);
-                webView.setWebViewClient(new WebViewClient());
-                webView.getSettings().setJavaScriptEnabled(true);
-                webView.getSettings().setDomStorageEnabled(true);
-                webView.loadUrl("file:///android_asset/index.html");
-                
-                setContentView(webView);
-            }
-        }
-        EOF
-        
-        # Create AndroidManifest.xml
-        cat > FarmProApp/app/src/main/AndroidManifest.xml << 'EOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-            package="com.farmpro.assistant">
-            
-            <uses-permission android:name="android.permission.INTERNET" />
-            
-            <application
-                android:icon="@mipmap/ic_launcher"
-                android:label="FarmPro Assistant">
-                <activity
-                    android:name=".MainActivity"
-                    android:label="FarmPro Assistant"
-                    android:configChanges="orientation|keyboardHidden"
-                    android:launchMode="singleTop">
-                    <intent-filter>
-                        <action android:name="android.intent.action.MAIN" />
-                        <category android:name="android.intent.category.LAUNCHER" />
-                    </intent-filter>
-                </activity>
-            </application>
-        </manifest>
-        EOF
-        
-    - name: Download pre-built APK tool
-      run: |
-        wget -O apktool.jar https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.7.0.jar
-        wget -O template.apk https://github.com/WebView-APK-Template/simple-webview-apk/releases/download/v1.0/simple-webview-template.apk
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '11'
         
     - name: Build APK
       run: |
-        # Use a simple APK packaging approach
-        java -jar apktool.jar d template.apk -o unpacked
-        cp index.html unpacked/assets/
-        java -jar apktool.jar b unpacked -o farmpro-assistant.apk
+        cd android-app
+        chmod +x gradlew
+        ./gradlew assembleDebug --stacktrace
         
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: farmpro-assistant
-        path: farmpro-assistant.apk
+        path: android-app/app/build/outputs/apk/debug/app-debug.apk
         retention-days: 30 
